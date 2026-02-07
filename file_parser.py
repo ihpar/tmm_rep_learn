@@ -78,7 +78,7 @@ class FileParser:
                 acc = sharp_repr[1:]
         return pc, acc, oct
 
-    def parse_line(self, tokens):
+    def parse_line(self, tokens, prev_offset):
         """
         line: 60	9	Si4b2	B4b1	312	313	1	16	179	99	96		6.75
         returns: PC, Acc, Oct, Dur
@@ -87,8 +87,10 @@ class FileParser:
         if tokens[1] in self.note_line_codes:
             note = tokens[3]  # Some examples: D5, Es, E5b4, F5#4
             pc, acc, oct = self.parse_pitch(note)
-            dur = tokens[6] + "/" + tokens[7]
-            return [pc, acc, oct, dur]
+            # dur = tokens[6] + "/" + tokens[7]
+            curr_offset = float(tokens[-1])
+            dur = round(curr_offset - prev_offset, 6)
+            return (pc, acc, oct, dur, curr_offset)
         else:
             return None
 
@@ -100,22 +102,47 @@ class FileParser:
         with open(file_path, "r") as in_file:
             lines = in_file.readlines()
         notes = []
-        prev = "end"
+        prev_meas = "end"
+        prev_offset = 0
         meas = None  # start || middle || end
         for line in lines:
             tokens = line.split("\t")
-            line_result = self.parse_line(tokens)
+            # pc, acc, oct, dur, curr_offset || None
+            line_result = self.parse_line(tokens, prev_offset)
             if line_result is None:
                 continue
+            if line_result[3] == 0:
+                continue
 
-            if prev == "end":
+            curr_offset = line_result[-1]
+
+            if prev_meas == "end":
                 meas = "start"
-            elif prev == "start" or prev == "middle":
+            elif prev_meas == "start" or prev_meas == "middle":
                 meas = "middle"
-            if float(tokens[-1]) % 1 == 0:
+            if curr_offset % 1 == 0:
                 meas = "end"
-            line_result.append(meas)
-            notes.append(line_result)
-            prev = meas
+
+            notes.append((
+                line_result[0],  # PC
+                line_result[1],  # Acc
+                line_result[2],  # Oct
+                line_result[3],  # Dur
+                meas  # Measure boundry
+            ))
+            prev_meas = meas
+            prev_offset = curr_offset
 
         return notes
+
+
+def main():
+    from pprint import pprint
+    fp = FileParser()
+    notes = fp.parse_file(
+        "data/txt/segah--sarki--agir_aksaksemai--cok_kildi--dellalzade_haci_ismail_efendi.txt")
+    pprint(notes)
+
+
+if __name__ == "__main__":
+    main()
