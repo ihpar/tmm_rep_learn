@@ -127,7 +127,7 @@ def main():
         pc_vocab=9,
         acc_vocab=10,
         oct_vocab=7,
-        dur_vocab=46,
+        dur_vocab=33,
         meas_vocab=4
     )
     model.to(device)
