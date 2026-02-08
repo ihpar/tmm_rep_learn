@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from matplotlib import ticker
 import matplotlib.pyplot as plt
 from attention_inspector import AttentionInspector
 
@@ -49,7 +50,12 @@ class PlotManager:
             plt.savefig("cm.pdf", bbox_inches="tight", pad_inches=0.05)
         plt.show()
 
-    def plot_attention_over_time(self, attn, title="Attention over Notes", save_fig=False):
+    def plot_attention_over_time(
+            self,
+            attn,
+            title="Attention over Notes",
+            save_fig=False
+    ):
         plt.figure(figsize=(6, 3))
         plt.plot(attn, linewidth=2)
         plt.xlabel("Note Index", fontname="Times", fontsize=12)
@@ -61,7 +67,13 @@ class PlotManager:
             plt.savefig("attn_time.pdf", bbox_inches="tight", pad_inches=0.05)
         plt.show()
 
-    def plot_attention_with_pitch(self, attn, pcs, pc_vocab_inv, save_fig=False):
+    def plot_attention_with_pitch(
+            self,
+            attn,
+            pcs,
+            pc_vocab_inv,
+            save_fig=False
+    ):
         pitches = [pc_vocab_inv[p] for p in pcs]
 
         plt.figure(figsize=(24, 3))
@@ -82,7 +94,12 @@ class PlotManager:
             plt.savefig("pitch_attn.pdf", bbox_inches="tight", pad_inches=0.05)
         plt.show()
 
-    def plot_attention_with_measures(self, attn, meas, save_fig=False):
+    def plot_attention_with_measures(
+            self,
+            attn,
+            meas,
+            save_fig=False
+    ):
         plt.figure(figsize=(12, 3))
         plt.plot(attn, linewidth=2)
 
@@ -131,7 +148,12 @@ class PlotManager:
                         bbox_inches="tight", pad_inches=0.05)
         plt.show()
 
-    def plot_agg_attention_by_pitch(self, agg, ai: AttentionInspector, save_fig=False):
+    def plot_agg_attention_by_pitch(
+            self,
+            agg,
+            ai: AttentionInspector,
+            save_fig=False
+    ):
         labels = []
         values = []
 
@@ -153,7 +175,12 @@ class PlotManager:
                         bbox_inches="tight", pad_inches=0.05)
         plt.show()
 
-    def plot_agg_attention_by_pitch_duration(self, agg, ai: AttentionInspector, save_fig=False):
+    def plot_agg_attention_by_pitch_duration(
+            self,
+            agg,
+            ai: AttentionInspector,
+            save_fig=False
+    ):
         labels = []
         values = []
 
@@ -175,7 +202,12 @@ class PlotManager:
                         bbox_inches="tight", pad_inches=0.05)
         plt.show()
 
-    def plot_agg_attention_correct_vs_incorrect(self, makam, ai: AttentionInspector, save_fig=False):
+    def plot_agg_attention_correct_vs_incorrect(
+            self,
+            makam,
+            ai: AttentionInspector,
+            save_fig=False
+    ):
         agg_c, agg_i, n_c, n_i = ai.aggregate_attention_correct_vs_incorrect(
             ai.makam_vocab[makam])
 
@@ -219,7 +251,12 @@ class PlotManager:
         print("Entropy (Correct):", entropy_correct)
         print("Entropy (Incorrect):", entropy_incorrect)
 
-    def plot_agg_attention_by_pitch_duration_makam(self, makam, ai: AttentionInspector, save_fig=False):
+    def plot_agg_attention_by_pitch_duration_makam(
+            self,
+            makam,
+            ai: AttentionInspector,
+            save_fig=False
+    ):
         makam_agg, piece_count = ai.aggregate_attention_for_makam(
             ai.makam_vocab[makam])
 
@@ -245,5 +282,45 @@ class PlotManager:
         plt.tight_layout()
         if save_fig:
             plt.savefig("attn_by_pitch_corr_incorr.pdf",
+                        bbox_inches="tight", pad_inches=0.05)
+        plt.show()
+
+    def plot_attention_vs_duration_boxplot(
+            self,
+            df,
+            title=None,
+            save_fig=False
+    ):
+        plt.figure(figsize=(8, 5))
+
+        sns.boxplot(
+            data=df,
+            x="dur_bin",
+            y="attention",
+            color="skyblue",
+            showfliers=False
+        )
+
+        # sns.stripplot(
+        #     data=df,
+        #     x="dur_bin",
+        #     y="attention",
+        #     color="black",
+        #     size=2,
+        #     alpha=0.25,
+        #     jitter=True
+        # )
+
+        plt.xlabel("Relative duration (binned)",
+                   fontname="Times", fontsize=12)
+        plt.ylabel("Attention weight",
+                   fontname="Times", fontsize=12)
+        plt.title("Attention vs Relative Duration (Binned)",
+                  fontname="Times", fontsize=12)
+        plt.xticks(fontname="Times", fontsize=10)
+
+        plt.tight_layout()
+        if save_fig:
+            plt.savefig("attn_vs_dur_box.pdf",
                         bbox_inches="tight", pad_inches=0.05)
         plt.show()

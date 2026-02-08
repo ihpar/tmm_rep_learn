@@ -1,13 +1,18 @@
 import torch
 import numpy as np
+import pandas as pd
+import scikit_posthocs as sp
+from scipy.stats import kruskal
 from scipy.stats import spearmanr
+from collections import defaultdict
+from scipy.stats import chi2_contingency
+
 from sklearn.metrics import (
     accuracy_score,
     precision_recall_fscore_support,
     confusion_matrix,
     classification_report
 )
-from collections import defaultdict
 
 
 class AttentionInspector:
@@ -293,7 +298,7 @@ class AttentionInspector:
         p = np.array(list(attn_dict.values()))
         return -np.sum(p * np.log(p + 1e-9))
 
-    def get_mean_attn_dur_correlation(self, makam):
+    def get_mean_attn_dur_correlation_makam(self, makam):
         corrs = []
         makam_idx = self.get_makam_pieces(self.makam_vocab[makam])
         for idx in makam_idx:
@@ -305,3 +310,192 @@ class AttentionInspector:
             corrs.append(corr_i)
 
         return np.array(corrs).mean()
+
+    def get_mean_attn_dur_correlation_all(self):
+        corrs = []
+        num_pieces = len(self.all_pcs)
+        for idx in range(num_pieces):
+            true_len_i = self.all_true_lengths[idx]
+            attn_piece_i = self.all_attn_weights[idx][:true_len_i]
+            durs_piece_i = self.all_durs[idx][:true_len_i]
+            corr_i = self.attention_duration_correlation(
+                attn_piece_i, durs_piece_i)
+            corrs.append(corr_i)
+        return np.array(corrs).mean()
+
+    def collect_attention_duration(self, target_makam=None):
+        """
+        Returns a pandas DataFrame with columns:
+        ['duration', 'attention', 'makam']
+        """
+        records = []
+        num_pieces = len(self.all_pcs)
+        for i in range(num_pieces):
+            makam_id = self.all_labels[i]
+            makam_name = self.makam_vocab_inv[makam_id]
+
+            if target_makam is not None and makam_name != target_makam:
+                continue
+
+            T = len(self.all_durs[i])
+            for t in range(T):
+                if t == self.all_true_lengths[i]:
+                    break
+
+                dur_id = self.all_durs[i][t]
+                if dur_id == 0:
+                    continue  # PAD
+
+                dur_value = self.dur_vocab_inv[dur_id]
+                if dur_value == 0:
+                    continue  # ornaments
+
+                attn = self.all_attn_weights[i][t]
+
+                records.append({
+                    "duration": dur_value,
+                    "attention": attn,
+                    "makam": makam_name
+                })
+
+        df = pd.DataFrame(records)
+        df_binned = self.rebin_relative_duration(df)
+        return df_binned
+
+    def rebin_relative_duration(self, df):
+        bins = [0.0, 0.0625, 0.1875, 0.375, 0.75, 1.01]
+        labels = [
+            "Very short (≤1/16)",
+            "Short (≤3/16)",
+            "Medium (≤3/8)",
+            "Long (≤3/4)",
+            "Very long (>3/4)"
+        ]
+
+        df = df.copy()
+        df["dur_bin"] = pd.cut(
+            df["duration"],
+            bins=bins,
+            labels=labels,
+            include_lowest=True
+        )
+        return df
+
+
+def cliffs_delta(x, y):
+    nx, ny = len(x), len(y)
+    greater = sum(1 for xi in x for yi in y if xi > yi)
+    less = sum(1 for xi in x for yi in y if xi < yi)
+    return (greater - less) / (nx * ny)
+
+
+def main():
+    from plot_manager import PlotManager
+    from dataset import build_dataloaders
+    from bilstm import BiLSTMAttentionClassifier
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = BiLSTMAttentionClassifier(
+        pc_vocab=9,
+        acc_vocab=10,
+        oct_vocab=7,
+        dur_vocab=33,
+        meas_vocab=4,
+        emb_dim=32,
+        lstm_hidden=128,
+        num_classes=12,
+        dropout=0.3
+    )
+    model.to(device)
+    checkpoint = torch.load("best_model.pt", map_location=device)
+    model.load_state_dict(checkpoint["model_state_dict"])
+    print("Loaded best model from epoch:", checkpoint["epoch"])
+
+    _, _, _, test_loader = build_dataloaders(
+        "vocab.pkl", "dataset.pkl", batch_size=8)
+
+    ai = AttentionInspector(device, model, test_loader)
+    pm = PlotManager()
+
+    (
+        all_labels,
+        all_preds,
+        all_f_names,
+        all_attn_weights,
+        all_true_lengths,
+        all_pcs,
+        all_accs,
+        all_meas,
+        all_durs
+    ) = ai.get_predictions()
+    df = ai.collect_attention_duration()
+    # print(df.head())
+    # pm.plot_attention_vs_duration_boxplot(df)
+
+    # kruskal
+    attention_by_bin = (
+        df
+        .groupby("dur_bin", observed=False)["attention"]
+        .apply(list)
+        .to_dict()
+    )
+    groups = [vals for vals in attention_by_bin.values() if len(vals) > 0]
+    H, p = kruskal(*groups)
+    print(f"Kruskal-Wallis H = {H:.3f}, p-value = {p:.4e}")
+
+    print("- " * 30)
+
+    # post hoc Holm
+    # Prepare dataframe
+    data = []
+    for bin_name, vals in attention_by_bin.items():
+        for v in vals:
+            data.append({"duration_bin": bin_name, "attention": v})
+
+    df_ph = pd.DataFrame(data)
+    # print(df.head())
+
+    # Dunn post-hoc with Holm correction
+    dunn = sp.posthoc_dunn(
+        df_ph,
+        val_col="attention",
+        group_col="duration_bin",
+        p_adjust="holm"
+    )
+
+    print(dunn)
+
+    print("- " * 30)
+
+    # cliff's delta
+    delta = cliffs_delta(
+        attention_by_bin["Very short (≤1/16)"],
+        attention_by_bin["Very long (>3/4)"]
+    )
+
+    print(f"Cliff's delta = {delta:.3f}")
+
+    # chi^2
+    threshold = np.percentile(df["attention"].to_numpy(), 95)
+
+    def prob_high_attention(attentions):
+        return np.mean(np.array(attentions) > threshold)
+
+    for bin_name, vals in attention_by_bin.items():
+        print(bin_name, prob_high_attention(vals))
+
+    # Example: short vs long
+    short = attention_by_bin["Very short (≤1/16)"]
+    long = attention_by_bin["Very long (>3/4)"]
+
+    table = [
+        [sum(np.array(short) > threshold), sum(np.array(short) <= threshold)],
+        [sum(np.array(long) > threshold),  sum(np.array(long) <= threshold)]
+    ]
+
+    chi2, p, _, _ = chi2_contingency(table)
+    print(f"Chi² = {chi2:.3f}, p = {p:.4e}")
+
+
+if __name__ == "__main__":
+    main()
