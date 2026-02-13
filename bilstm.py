@@ -97,7 +97,7 @@ class BiLSTMAttentionClassifier(nn.Module):
 
 
 def main():
-    train_loader, _, _ = build_dataloaders("vocab.pkl", "dataset.pkl", batch_size=4)
+    train_loader, _, _, _ = build_dataloaders("vocab.pkl", "dataset.pkl", batch_size=4)
     model = BiLSTMAttentionClassifier(
         pc_vocab=9,
         acc_vocab=10,
