@@ -381,12 +381,81 @@ class AttentionInspector:
         )
         return df
 
+    def cliffs_delta(self, x, y):
+        nx, ny = len(x), len(y)
+        greater = sum(1 for xi in x for yi in y if xi > yi)
+        less = sum(1 for xi in x for yi in y if xi < yi)
+        return (greater - less) / (nx * ny)
 
-def cliffs_delta(x, y):
-    nx, ny = len(x), len(y)
-    greater = sum(1 for xi in x for yi in y if xi > yi)
-    less = sum(1 for xi in x for yi in y if xi < yi)
-    return (greater - less) / (nx * ny)
+    def collect_attn_dur_bin_stats(self, target_makam=None):
+        df = self.collect_attention_duration(target_makam)
+        # print(df.head())
+        # pm.plot_attention_vs_duration_boxplot(df)
+
+        # kruskal
+        attention_by_bin = (
+            df
+            .groupby("dur_bin", observed=False)["attention"]
+            .apply(list)
+            .to_dict()
+        )
+        groups = [vals for vals in attention_by_bin.values() if len(vals) > 0]
+        H, p = kruskal(*groups)
+        print(f"Kruskal-Wallis H = {H:.3f}, p-value = {p:.4e}")
+
+        print("- " * 30)
+
+        # post hoc Holm
+        # Prepare dataframe
+        data = []
+        for bin_name, vals in attention_by_bin.items():
+            for v in vals:
+                data.append({"duration_bin": bin_name, "attention": v})
+
+        df_ph = pd.DataFrame(data)
+        # print(df.head())
+
+        # Dunn post-hoc with Holm correction
+        dunn = sp.posthoc_dunn(
+            df_ph,
+            val_col="attention",
+            group_col="duration_bin",
+            p_adjust="holm"
+        )
+
+        print(dunn)
+
+        print("- " * 30)
+
+        # cliff's delta
+        delta = self.cliffs_delta(
+            attention_by_bin["Very short (≤1/16)"],
+            attention_by_bin["Very long (>3/4)"]
+        )
+
+        print(f"Cliff's delta = {delta:.3f}")
+
+        # chi^2
+        threshold = np.percentile(df["attention"].to_numpy(), 95)
+
+        def prob_high_attention(attentions):
+            return np.mean(np.array(attentions) > threshold)
+
+        for bin_name, vals in attention_by_bin.items():
+            print(bin_name, prob_high_attention(vals))
+
+        # Example: short vs long
+        short = attention_by_bin["Very short (≤1/16)"]
+        long = attention_by_bin["Very long (>3/4)"]
+
+        table = [
+            [sum(np.array(short) > threshold), sum(
+                np.array(short) <= threshold)],
+            [sum(np.array(long) > threshold),  sum(np.array(long) <= threshold)]
+        ]
+
+        chi2, p, _, _ = chi2_contingency(table)
+        print(f"Chi² = {chi2:.3f}, p = {p:.4e}")
 
 
 def main():
@@ -428,73 +497,7 @@ def main():
         all_meas,
         all_durs
     ) = ai.get_predictions()
-    df = ai.collect_attention_duration()
-    # print(df.head())
-    # pm.plot_attention_vs_duration_boxplot(df)
-
-    # kruskal
-    attention_by_bin = (
-        df
-        .groupby("dur_bin", observed=False)["attention"]
-        .apply(list)
-        .to_dict()
-    )
-    groups = [vals for vals in attention_by_bin.values() if len(vals) > 0]
-    H, p = kruskal(*groups)
-    print(f"Kruskal-Wallis H = {H:.3f}, p-value = {p:.4e}")
-
-    print("- " * 30)
-
-    # post hoc Holm
-    # Prepare dataframe
-    data = []
-    for bin_name, vals in attention_by_bin.items():
-        for v in vals:
-            data.append({"duration_bin": bin_name, "attention": v})
-
-    df_ph = pd.DataFrame(data)
-    # print(df.head())
-
-    # Dunn post-hoc with Holm correction
-    dunn = sp.posthoc_dunn(
-        df_ph,
-        val_col="attention",
-        group_col="duration_bin",
-        p_adjust="holm"
-    )
-
-    print(dunn)
-
-    print("- " * 30)
-
-    # cliff's delta
-    delta = cliffs_delta(
-        attention_by_bin["Very short (≤1/16)"],
-        attention_by_bin["Very long (>3/4)"]
-    )
-
-    print(f"Cliff's delta = {delta:.3f}")
-
-    # chi^2
-    threshold = np.percentile(df["attention"].to_numpy(), 95)
-
-    def prob_high_attention(attentions):
-        return np.mean(np.array(attentions) > threshold)
-
-    for bin_name, vals in attention_by_bin.items():
-        print(bin_name, prob_high_attention(vals))
-
-    # Example: short vs long
-    short = attention_by_bin["Very short (≤1/16)"]
-    long = attention_by_bin["Very long (>3/4)"]
-
-    table = [
-        [sum(np.array(short) > threshold), sum(np.array(short) <= threshold)],
-        [sum(np.array(long) > threshold),  sum(np.array(long) <= threshold)]
-    ]
-
-    chi2, p, _, _ = chi2_contingency(table)
-    print(f"Chi² = {chi2:.3f}, p = {p:.4e}")
+    ai.collect_attn_dur_bin_stats()
 
 
 if __name__ == "__main__":
