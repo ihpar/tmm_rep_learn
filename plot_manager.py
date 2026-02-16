@@ -47,7 +47,8 @@ class PlotManager:
 
         plt.tight_layout()
         if save_fig:
-            plt.savefig("cm.pdf", bbox_inches="tight", pad_inches=0.05)
+            plt.savefig("figs/conf_matrix.pdf",
+                        bbox_inches="tight", pad_inches=0.05)
         plt.show()
 
     def plot_attention_over_time(
@@ -56,7 +57,7 @@ class PlotManager:
             title="Attention over Notes",
             save_fig=False
     ):
-        plt.figure(figsize=(6, 3))
+        plt.figure(figsize=(8, 3))
         plt.plot(attn, linewidth=2)
         plt.xlabel("Note Index", fontname="Times", fontsize=12)
         plt.ylabel("Attention Weight", fontname="Times", fontsize=12)
@@ -64,7 +65,8 @@ class PlotManager:
         plt.grid(alpha=0.3)
         plt.tight_layout()
         if save_fig:
-            plt.savefig("attn_time.pdf", bbox_inches="tight", pad_inches=0.05)
+            plt.savefig("figs/attn_over_time.pdf",
+                        bbox_inches="tight", pad_inches=0.05)
         plt.show()
 
     def plot_attention_with_pitch(
@@ -91,16 +93,18 @@ class PlotManager:
                   fontname="Times", fontsize=12)
         plt.tight_layout()
         if save_fig:
-            plt.savefig("pitch_attn.pdf", bbox_inches="tight", pad_inches=0.05)
+            plt.savefig("figs/pitch_attn.pdf",
+                        bbox_inches="tight", pad_inches=0.05)
         plt.show()
 
     def plot_attention_with_measures(
             self,
             attn,
             meas,
+            title="Attention with Measure Boundaries",
             save_fig=False
     ):
-        plt.figure(figsize=(12, 3))
+        plt.figure(figsize=(8, 3))
         plt.plot(attn, linewidth=2)
 
         for i, m in enumerate(meas):
@@ -109,11 +113,11 @@ class PlotManager:
 
         plt.xlabel("Note Index", fontname="Times", fontsize=12)
         plt.ylabel("Attention Weight", fontname="Times", fontsize=12)
-        plt.title("Attention with Measure Boundaries",
-                  fontname="Times", fontsize=12)
+        plt.title(title, fontname="Times", fontsize=12)
         plt.tight_layout()
         if save_fig:
-            plt.savefig("meas_attn.pdf", bbox_inches="tight", pad_inches=0.05)
+            plt.savefig("figs/meas_attn.pdf",
+                        bbox_inches="tight", pad_inches=0.05)
         plt.show()
 
     def plot_attention_with_combined_pitch(
@@ -152,6 +156,7 @@ class PlotManager:
             self,
             agg,
             ai: AttentionInspector,
+            title="Aggregated Attention by Pitch + Accidental",
             save_fig=False
     ):
         labels = []
@@ -163,15 +168,14 @@ class PlotManager:
             labels.append(f"{pc_name}{acc_name}")
             values.append(val)
 
-        plt.figure(figsize=(6, 3))
+        plt.figure(figsize=(5, 3))
         plt.bar(labels, values)
         plt.xticks(rotation=45, fontname="Times", fontsize=10)
         plt.ylabel("Total Attention", fontname="Times", fontsize=12)
-        plt.title("Aggregated Attention by Pitch + Accidental",
-                  fontname="Times", fontsize=12)
+        plt.title(title, fontname="Times", fontsize=12)
         plt.tight_layout()
         if save_fig:
-            plt.savefig("agg_attn_by_pitch.pdf",
+            plt.savefig("figs/agg_attn_by_pitch_piece.pdf",
                         bbox_inches="tight", pad_inches=0.05)
         plt.show()
 
@@ -179,6 +183,7 @@ class PlotManager:
             self,
             agg,
             ai: AttentionInspector,
+            title="Duration Weighted Aggregated Attention by Pitch + Accidental",
             save_fig=False
     ):
         labels = []
@@ -190,15 +195,14 @@ class PlotManager:
             labels.append(f"{pc_name}{acc_name}")
             values.append(val)
 
-        plt.figure(figsize=(6, 3))
+        plt.figure(figsize=(5, 3))
         plt.bar(labels, values)
         plt.xticks(rotation=45, fontname="Times", fontsize=10)
         plt.ylabel("Total Attention", fontname="Times", fontsize=12)
-        plt.title("Duration Weighted Aggregated Attention by Pitch + Accidental",
-                  fontname="Times", fontsize=12)
+        plt.title(title, fontname="Times", fontsize=12)
         plt.tight_layout()
         if save_fig:
-            plt.savefig("agg_attn_by_pitch_dur.pdf",
+            plt.savefig("figs/dur_weighted_agg_attn_by_pitch_piece.pdf",
                         bbox_inches="tight", pad_inches=0.05)
         plt.show()
 
@@ -241,7 +245,7 @@ class PlotManager:
         )
         plt.tight_layout()
         if save_fig:
-            plt.savefig("attn_by_pitch_corr_incorr.pdf",
+            plt.savefig(f"figs/attn_by_pitch_corr_incorr_{makam}.pdf",
                         bbox_inches="tight", pad_inches=0.05)
         plt.show()
 
@@ -255,6 +259,7 @@ class PlotManager:
             self,
             makam,
             ai: AttentionInspector,
+            title="Aggregated Attention by Pitch + Accidental",
             save_fig=False
     ):
         makam_agg, piece_count = ai.aggregate_attention_for_makam(
@@ -270,43 +275,44 @@ class PlotManager:
             labels.append(f"{ai.pc_vocab_inv[pc]}{ai.acc_vocab_inv[acc]}")
             values.append(val)
 
-        plt.figure(figsize=(6, 3))
+        plt.figure(figsize=(4.5, 2.5))
         plt.bar(labels, values)
         plt.xticks(rotation=45, fontname="Times", fontsize=10)
-        plt.title(
-            f"Aggregated Attention by Pitch + Accidental "
-            f"({makam.capitalize()})",
-            fontname="Times", fontsize=12
-        )
+        plt.title(title, fontname="Times", fontsize=12)
         plt.ylabel("Normalized Attention", fontname="Times", fontsize=12)
         plt.tight_layout()
         if save_fig:
-            plt.savefig("attn_by_pitch_corr_incorr.pdf",
+            plt.savefig(f"figs/attn_by_pitch_acc_makam_{makam}.pdf",
                         bbox_inches="tight", pad_inches=0.05)
         plt.show()
 
     def plot_attention_vs_duration_boxplot(
             self,
             df,
-            title=None,
+            title="Attention vs Relative Duration (Binned)",
             save_fig=False
     ):
-        plt.figure(figsize=(8, 5))
+        plt.figure(figsize=(7, 4))
+        # plt.yscale("log")
 
         sns.boxplot(
             data=df,
             x="dur_bin",
             y="attention",
             color="skyblue",
-            showfliers=False
+            showfliers=False,
+            medianprops=dict(color="black", linewidth=2)
         )
+        sns.despine()
+
+        plt.ylim(0, 0.0058)
 
         # sns.stripplot(
         #     data=df,
         #     x="dur_bin",
         #     y="attention",
-        #     color="black",
-        #     size=2,
+        #     # color="red",
+        #     # size=2,
         #     alpha=0.25,
         #     jitter=True
         # )
@@ -315,12 +321,80 @@ class PlotManager:
                    fontname="Times", fontsize=12)
         plt.ylabel("Attention weight",
                    fontname="Times", fontsize=12)
-        plt.title("Attention vs Relative Duration (Binned)",
-                  fontname="Times", fontsize=12)
+        plt.title(title, fontname="Times", fontsize=12)
         plt.xticks(fontname="Times", fontsize=10)
 
         plt.tight_layout()
         if save_fig:
-            plt.savefig("attn_vs_dur_box.pdf",
+            plt.savefig("figs/attn_vs_dur_box_binned.pdf",
                         bbox_inches="tight", pad_inches=0.05)
+        plt.show()
+
+    def plot_agg_attn_by_pitch_acc_all_makams(
+        self,
+        makam_list,
+        ai: AttentionInspector,
+        title="Aggregated Attention by Pitch + Accidental for All Makams",
+        save_fig=False
+    ):
+        num_makams = len(makam_list)
+        num_rows = int(np.ceil(num_makams / 2))
+
+        fig, axes = plt.subplots(
+            num_rows,
+            2,
+            figsize=(7, 8.5),
+            sharey="row",
+            constrained_layout=False
+        )
+
+        fig.suptitle(title, fontname="Times", fontsize=12)
+
+        axes = axes.flatten()
+
+        for i in range(num_makams):
+            ax = axes[i]
+
+            makam_agg, piece_count = ai.aggregate_attention_for_makam(
+                ai.makam_vocab[makam_list[i]["id"]]
+            )
+            makam_agg = ai.normalize_attention(makam_agg)
+
+            labels = []
+            values = []
+
+            for (pc, acc), val in sorted(
+                makam_agg.items(), key=lambda x: -x[1]
+            ):
+                labels.append(f"{ai.pc_vocab_inv[pc]}{ai.acc_vocab_inv[acc]}")
+                values.append(val)
+
+            ax.bar(labels, values)
+
+            ax.set_title(makam_list[i]["name"], fontname="Times", fontsize=10)
+            ax.tick_params(axis="x", rotation=90, labelsize=9)
+
+            if i % 2 == 0:
+                ax.set_ylabel("Normalized Attn.",
+                              fontname="Times", fontsize=10)
+
+        if num_makams % 2 != 0:
+            fig.delaxes(axes[-1])
+
+        plt.subplots_adjust(
+            left=0.1,
+            right=0.5,
+            top=0.1,
+            bottom=0.01,
+            hspace=0.01,   # ver. spacing
+            wspace=0.01    # hor. spacing
+        )
+        plt.tight_layout()
+        if save_fig:
+            plt.savefig(
+                "figs/attn_by_pitch_acc_all_makams.pdf",
+                bbox_inches="tight",
+                pad_inches=0.01
+            )
+
         plt.show()

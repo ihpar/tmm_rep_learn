@@ -135,12 +135,14 @@ class AttentionInspector:
         # Confusion matrix
         results["confusion_matrix"] = confusion_matrix(y_true, y_pred)
 
-        print(classification_report(
+        report = classification_report(
             y_true,
             y_pred,
             target_names=makam_names,
-            digits=4
-        ))
+            digits=4,
+            output_dict=True
+        )
+        results["report"] = report
         return results
 
     def get_single_piece_ai(self, piece_idx):
@@ -325,7 +327,7 @@ class AttentionInspector:
 
     def collect_attention_duration(self, target_makam=None):
         """
-        Returns a pandas DataFrame with columns:
+        Returns a DataFrame with columns:
         ['duration', 'attention', 'makam']
         """
         records = []
@@ -334,7 +336,7 @@ class AttentionInspector:
             makam_id = self.all_labels[i]
             makam_name = self.makam_vocab_inv[makam_id]
 
-            if target_makam is not None and makam_name != target_makam:
+            if (target_makam is not None) and (makam_name != target_makam):
                 continue
 
             T = len(self.all_durs[i])
@@ -372,7 +374,6 @@ class AttentionInspector:
             "Very long (>3/4)"
         ]
 
-        df = df.copy()
         df["dur_bin"] = pd.cut(
             df["duration"],
             bins=bins,
@@ -387,66 +388,39 @@ class AttentionInspector:
         less = sum(1 for xi in x for yi in y if xi < yi)
         return (greater - less) / (nx * ny)
 
-    def collect_attn_dur_bin_stats(self, target_makam=None):
-        df = self.collect_attention_duration(target_makam)
-        # print(df.head())
-        # pm.plot_attention_vs_duration_boxplot(df)
+    def prob_high_attention(self, attentions, threshold):
+        return np.mean(np.array(attentions) > threshold)
 
-        # kruskal
-        attention_by_bin = (
-            df
-            .groupby("dur_bin", observed=False)["attention"]
-            .apply(list)
-            .to_dict()
-        )
-        groups = [vals for vals in attention_by_bin.values() if len(vals) > 0]
+    def kruskal_wallis(self, attn_by_bin):
+        groups = [vals for vals in attn_by_bin.values() if len(vals) > 0]
         H, p = kruskal(*groups)
-        print(f"Kruskal-Wallis H = {H:.3f}, p-value = {p:.4e}")
+        return H, p
 
-        print("- " * 30)
-
-        # post hoc Holm
-        # Prepare dataframe
+    def dunn_posthoc(self, attn_by_bin):
         data = []
-        for bin_name, vals in attention_by_bin.items():
+        for bin_name, vals in attn_by_bin.items():
             for v in vals:
                 data.append({"duration_bin": bin_name, "attention": v})
 
         df_ph = pd.DataFrame(data)
-        # print(df.head())
 
         # Dunn post-hoc with Holm correction
-        dunn = sp.posthoc_dunn(
+        df_dunn = sp.posthoc_dunn(
             df_ph,
             val_col="attention",
             group_col="duration_bin",
             p_adjust="holm"
         )
+        return df_dunn
 
-        print(dunn)
+    def chi_sqaure(self, attn_by_bin, df_attn, bin_x, bin_y):
+        threshold = np.percentile(df_attn, 95)
 
-        print("- " * 30)
+        for bin_name, vals in attn_by_bin.items():
+            print(bin_name, self.prob_high_attention(vals, threshold))
 
-        # cliff's delta
-        delta = self.cliffs_delta(
-            attention_by_bin["Very short (≤1/16)"],
-            attention_by_bin["Very long (>3/4)"]
-        )
-
-        print(f"Cliff's delta = {delta:.3f}")
-
-        # chi^2
-        threshold = np.percentile(df["attention"].to_numpy(), 95)
-
-        def prob_high_attention(attentions):
-            return np.mean(np.array(attentions) > threshold)
-
-        for bin_name, vals in attention_by_bin.items():
-            print(bin_name, prob_high_attention(vals))
-
-        # Example: short vs long
-        short = attention_by_bin["Very short (≤1/16)"]
-        long = attention_by_bin["Very long (>3/4)"]
+        short = attn_by_bin[bin_x]
+        long = attn_by_bin[bin_y]
 
         table = [
             [sum(np.array(short) > threshold), sum(
@@ -455,49 +429,73 @@ class AttentionInspector:
         ]
 
         chi2, p, _, _ = chi2_contingency(table)
+        return chi2, p
+
+    def collect_attn_dur_bin_stats(
+            self,
+            bin_x="Very short (≤1/16)",
+            bin_y="Very long (>3/4)",
+            target_makam=None
+    ):
+        """
+        bins:
+
+        Very short (≤1/16) 
+        Short (≤3/16)
+        Medium (≤3/8)
+        Long (≤3/4)
+        Very long (>3/4)
+
+        returns: binned DataFrame
+        """
+
+        df = self.collect_attention_duration(target_makam)
+
+        # kruskal
+        attention_by_bin = (
+            df
+            .groupby("dur_bin", observed=False)["attention"]
+            .apply(list)
+            .to_dict()
+        )
+
+        H, p = self.kruskal_wallis(attention_by_bin)
+        print(f"Kruskal-Wallis H = {H:.3f}, p-value = {p:.4e}")
+
+        print("\n" + "- " * 30 + "\n")
+
+        # Dunn post hoc
+        df_dunn = self.dunn_posthoc(attention_by_bin)
+        print("Dunn post-hoc with Holm correction")
+        print(df_dunn)
+        df_dunn.to_excel("dunn.xlsx")
+
+        print("\n" + "- " * 30 + "\n")
+
+        # cliff's delta
+        delta = self.cliffs_delta(
+            attention_by_bin[bin_x],
+            attention_by_bin[bin_y]
+        )
+
+        print(f"Cliff's delta = {delta:.3f}")
+
+        print("\n" + "- " * 30 + "\n")
+
+        # Chi²
+        chi2, p = self.chi_sqaure(
+            attention_by_bin,
+            df["attention"].to_numpy(),
+            bin_x,
+            bin_y
+        )
         print(f"Chi² = {chi2:.3f}, p = {p:.4e}")
+
+        return df
 
 
 def main():
-    from plot_manager import PlotManager
-    from dataset import build_dataloaders
-    from bilstm import BiLSTMAttentionClassifier
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = BiLSTMAttentionClassifier(
-        pc_vocab=9,
-        acc_vocab=10,
-        oct_vocab=7,
-        dur_vocab=33,
-        meas_vocab=4,
-        emb_dim=32,
-        lstm_hidden=128,
-        num_classes=12,
-        dropout=0.3
-    )
-    model.to(device)
-    checkpoint = torch.load("best_model.pt", map_location=device)
-    model.load_state_dict(checkpoint["model_state_dict"])
-    print("Loaded best model from epoch:", checkpoint["epoch"])
-
-    _, _, _, test_loader = build_dataloaders(
-        "vocab.pkl", "dataset.pkl", batch_size=8)
-
-    ai = AttentionInspector(device, model, test_loader)
-    pm = PlotManager()
-
-    (
-        all_labels,
-        all_preds,
-        all_f_names,
-        all_attn_weights,
-        all_true_lengths,
-        all_pcs,
-        all_accs,
-        all_meas,
-        all_durs
-    ) = ai.get_predictions()
-    ai.collect_attn_dur_bin_stats()
+    pass
 
 
 if __name__ == "__main__":
