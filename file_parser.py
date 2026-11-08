@@ -139,8 +139,13 @@ class FileParser:
 def main():
     from pprint import pprint
     fp = FileParser()
+    """ 
+    data/txt/zzerr-rast--sarki--agiraksak--muy-i_julidem--sakir_aga.txt
+    data/txt/muhayyer--bozlak--serbest--havayi_da--asaf_guven.txt
+    data/txt/saba--miraciye--serbest--pes_heman--nayi_osman_dede.txt
+    """
     notes = fp.parse_file(
-        "data/txt/segah--sarki--agir_aksaksemai--cok_kildi--dellalzade_haci_ismail_efendi.txt")
+        "data/txt/zzerr-rast--sarki--agiraksak--muy-i_julidem--sakir_aga.txt")
     pprint(notes)
 
 
